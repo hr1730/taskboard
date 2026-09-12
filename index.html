@@ -255,6 +255,10 @@
 
 <script src="https://apis.google.com/js/api.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- Optional. If config.js sits next to this file and fills in all three values,
+     nobody has to type anything - they just open the page and sign in.
+     A missing config.js is harmless: the page falls back to asking. -->
+<script src="config.js" onerror="void 0"></script>
 <script>
 "use strict";
 /* =======================================================================
@@ -357,11 +361,36 @@ function ask(msg, okLabel){
 function loadCfg(){
   try{ const raw = localStorage.getItem(LS.cfg); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
 }
+function bakedCfg(){
+  const b = (typeof window.RMK_CONFIG === 'object' && window.RMK_CONFIG) ? window.RMK_CONFIG : null;
+  if(!b) return null;
+  const unset = v => !v || /^(PASTE|YOUR|xxx)/i.test(String(v).trim());
+  const out = {
+    clientId: unset(b.clientId) ? '' : String(b.clientId).trim(),
+    apiKey:   unset(b.apiKey)   ? '' : String(b.apiKey).trim(),
+    appId:    unset(b.appId)    ? '' : String(b.appId).trim()
+  };
+  if(!out.appId && out.clientId.includes('-')) out.appId = out.clientId.split('-')[0];
+  return out;
+}
 function boot(){
+  const baked = bakedCfg();
   cfg = loadCfg();
+  // config.js wins when it is complete - that is the whole point of it
+  if(baked && baked.clientId && baked.apiKey) cfg = baked;
+
   if(!cfg || !cfg.clientId || !cfg.apiKey){
     $('#setup').classList.remove('hidden');
-    if(cfg){ $('#cfgClient').value=cfg.clientId||''; $('#cfgKey').value=cfg.apiKey||''; $('#cfgApp').value=cfg.appId||''; }
+    const pre = cfg || baked || {};
+    $('#cfgClient').value = pre.clientId || '';
+    $('#cfgKey').value    = pre.apiKey   || '';
+    $('#cfgApp').value    = pre.appId    || '';
+    // if config.js supplied everything but the key, say so and focus that one box
+    if(baked && baked.clientId && !baked.apiKey){
+      $('#setup').querySelector('p').textContent =
+        'Almost there - the API key is the only thing missing. Paste it below.';
+      setTimeout(()=>$('#cfgKey').focus(), 50);
+    }
     return;
   }
   $('#app').classList.remove('hidden');
